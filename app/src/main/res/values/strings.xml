@@ -1,0 +1,3 @@
+<resources>
+    <string name="module_description">将 HyperOS 电源键长按重定向至 Gemini</string>
+</resources>
