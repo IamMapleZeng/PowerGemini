@@ -1,26 +1,22 @@
-# Power Gemini
+# Power Gemini 2.1
 
-HyperOS 4 / Android 15 及以上的 LSPosed 模块。要求管理器的框架 API 为 **102 或更高**。
+适用于国行 HyperOS 的 LSPosed 模块。按住电源键达到设定时间时向 Google 助手服务请求显示 Gemini 浮层。持续按住至 5 秒时尝试显示系统电源菜单。松手会取消尚未执行的操作。
 
-## 安装和使用
+## 安装
 
-1. 安装 Google App 和 Gemini，打开 Gemini 完成初始化并将 Google 的数字助理切换到 Gemini。
-2. 在系统设置搜索「数字助理应用」或「默认助理」，选择 **Google**。
-3. 保持 HyperOS 的「长按电源键唤醒小爱」手势开启，让系统分发原有的电源键长按事件。
-4. 安装 Power Gemini APK，在 LSPosed 中启用 Power Gemini，勾选 **系统框架**（`system`），然后重启手机。
-5. 解锁手机并长按电源键，检查是否弹出 Gemini 浮层。
+1. 安装并初始化 Google App 和 Gemini，在 Google 的数字助理选项中选择 Gemini。
+2. 安装 Power Gemini 2.1 APK。此版本使用与 Power Gemini 1.0 相同的应用 ID 和签名，可以覆盖安装。
+3. 在 LSPosed 停用原版 GeminiMi，再启用 Power Gemini。勾选系统框架、超级小爱（`com.miui.voiceassist`）、Google App（`com.google.android.googlequicksearchbox`）和 Gemini（`com.google.android.apps.bard`）。
+4. 重启并解锁，然后长按电源键测试。使用 `adb logcat -d` 并搜索 `PowerGemini` 可查看模块日志。
 
-模块复用系统长按判定，仅接管已知的小爱电源键入口。它使用 Android 的语音交互服务打开 Google 助理浮层。服务接受请求后才跳过小爱。Google 端的助理选择决定浮层是 Gemini 还是 Google 助理。模块只读取系统的默认语音助理设置。禁用模块后重启即可撤销按键重定向。
+## 设置唤醒时间
 
-如果仍弹小爱，先确认重启后 Google 仍是系统默认助理。查看 LSPosed 中 `PowerGemini` 的日志。需要排查时请提供手机型号、完整 ROM 版本号、Android 版本，以及触发后的相关日志。不同 ROM 的内部接口可能有差异。
+从桌面打开 Power Gemini，将滑块调至 0.3–3.0 秒，以 0.1 秒为单位，然后点「保存」。默认值是 0.5 秒。升级后先重启一次，让 LSPosed 加载新版模块，之后保存时长无需重启。
 
-## 从源码构建
+## 构建
 
-用 Android Studio 打开此目录，或使用 JDK 17、Gradle 9.5.1 和 Android SDK Platform 37 运行 `gradle :app:assembleDebug`。Gradle 生成的 APK 位于 `app/build/outputs/apk/debug/`。自行构建的 APK 使用自己的签名，覆盖安装要求签名一致。
+使用 JDK 17 和 Android SDK Platform 34，运行 `./gradlew :app:testDebugUnitTest :app:assembleDebug`。自行构建的 APK 使用自己的签名，覆盖安装时须使用相同的签名。
 
-## 参考
+## 来源
 
-- [libxposed API](https://github.com/libxposed/api)
-- [HyperOS 4 电源键入口](https://github.com/fulu2778/Gemini-For-HyperOS4)
-- [HyperOS 4 的电源键功能名](https://github.com/Leekin2/XGoogle)
-- [Android 语音交互服务接口](https://android.googlesource.com/platform/frameworks/base.git/+/master/core/java/com/android/internal/app/IVoiceInteractionManagerService.aidl)
+基于 [SherlockChiang/Gemini-mi 1.1.2](https://github.com/SherlockChiang/Gemini-mi)，沿用其 Google 助手设置、语音交互服务调用、小爱偏好钩子，以及 Google App 和 Gemini 的进程内地区适配。本版在电源键按下时启动计时，保留 5 秒电源菜单。唤醒时间由设置页保存并同步到系统框架。

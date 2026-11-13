@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="module_description">将 HyperOS 电源键长按重定向至 Gemini</string>
+    <string name="app_name">Power Gemini</string>
 </resources>

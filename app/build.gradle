@@ -1,22 +1,45 @@
 plugins {
-    id 'com.android.application' version '9.2.1'
+    id 'com.android.application'
 }
 
+def signingStoreFile = System.getenv('SIGNING_STORE_FILE')
+def signingStorePassword = System.getenv('SIGNING_STORE_PASSWORD')
+def signingKeyAlias = System.getenv('SIGNING_KEY_ALIAS')
+def signingKeyPassword = System.getenv('SIGNING_KEY_PASSWORD')
+def hasReleaseSigning = [signingStoreFile, signingStorePassword, signingKeyAlias,
+                         signingKeyPassword].every { it != null && !it.isEmpty() }
+
 android {
-    namespace 'io.github.powergemini'
-    compileSdk 37
+    namespace 'com.vince.geminimi'
+    compileSdk 34
 
     defaultConfig {
-        applicationId 'io.github.powergemini'
-        minSdk 35
-        targetSdk 35
-        versionCode 1
-        versionName '1.0'
+        applicationId "io.github.powergemini"
+        minSdk 30
+        targetSdk 34
+        versionCode 3
+        versionName "2.1"
     }
 
-    packaging {
-        resources {
-            merges += 'META-INF/xposed/*'
+    if (hasReleaseSigning) {
+        signingConfigs {
+            release {
+                storeFile file(signingStoreFile)
+                storePassword signingStorePassword
+                keyAlias signingKeyAlias
+                keyPassword signingKeyPassword
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'),
+                          'proguard-rules.pro'
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 
@@ -27,5 +50,6 @@ android {
 }
 
 dependencies {
-    compileOnly 'io.github.libxposed:api:102.0.0'
+    compileOnly 'de.robv.android.xposed:api:82'
+    testImplementation 'junit:junit:4.13.2'
 }

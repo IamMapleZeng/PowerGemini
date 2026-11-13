@@ -1,6 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
     <application
-        android:label="Power Gemini"
-        android:description="@string/module_description"
-        android:allowBackup="false" />
+        android:allowBackup="false"
+        android:label="@string/app_name"
+        android:icon="@drawable/ic_power_gemini"
+        android:theme="@style/AppTheme">
+
+        <activity android:name="com.vince.geminimi.SettingsActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <provider
+            android:name="com.vince.geminimi.TimingSettingsProvider"
+            android:authorities="io.github.powergemini.timing"
+            android:directBootAware="true"
+            android:exported="true" />
+
+        <meta-data
+            android:name="xposedmodule"
+            android:value="true" />
+        <meta-data
+            android:name="xposeddescription"
+            android:value="国行 HyperOS 长按电源键唤起 Gemini Overlay (替代小爱)" />
+        <meta-data
+            android:name="xposedminversion"
+            android:value="93" />
+        <meta-data
+            android:name="xposedscope"
+            android:resource="@array/xposed_scope" />
+    </application>
 </manifest>
