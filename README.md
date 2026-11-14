@@ -1,5 +1,7 @@
 # Power Gemini 2.1
 
+[English](README.en.md)
+
 适用于国行 HyperOS 的 LSPosed 模块。按住电源键达到设定时间时向 Google 助手服务请求显示 Gemini 浮层。持续按住至 5 秒时尝试显示系统电源菜单。松手会取消尚未执行的操作。
 
 ## 安装
