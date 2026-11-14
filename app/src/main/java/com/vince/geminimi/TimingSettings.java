@@ -9,7 +9,7 @@ public final class TimingSettings {
     public static final int MAX_MS = 3000;
     public static final int STEP_MS = 100;
     public static final int DEFAULT_MS = 500;
-    public static final Uri URI = Uri.parse("content://io.github.powergemini.timing/delay");
+    public static final Uri URI = Uri.parse("content://io.github.iammaplezeng.powergemini.timing/delay");
     private static final String KEY = "delay_ms";
 
     private TimingSettings() {}

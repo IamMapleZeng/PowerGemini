@@ -5,7 +5,7 @@
 ## 安装
 
 1. 安装并初始化 Google App 和 Gemini，在 Google 的数字助理选项中选择 Gemini。
-2. 安装 Power Gemini 2.1 APK。此版本使用与 Power Gemini 1.0 相同的应用 ID 和签名，可以覆盖安装。
+2. 安装 Power Gemini 2.1 APK。发布版包名为 `io.github.iammaplezeng.powergemini`。从旧包名升级时，请先在 LSPosed 停用旧版，再启用新包名的模块。旧版的唤醒时间需要重新设置。
 3. 在 LSPosed 停用原版 GeminiMi，再启用 Power Gemini。勾选系统框架、超级小爱（`com.miui.voiceassist`）、Google App（`com.google.android.googlequicksearchbox`）和 Gemini（`com.google.android.apps.bard`）。
 4. 重启并解锁，然后长按电源键测试。使用 `adb logcat -d` 并搜索 `PowerGemini` 可查看模块日志。
 

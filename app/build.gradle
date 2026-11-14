@@ -14,7 +14,7 @@ android {
     compileSdk 34
 
     defaultConfig {
-        applicationId "io.github.powergemini"
+        applicationId "io.github.iammaplezeng.powergemini"
         minSdk 30
         targetSdk 34
         versionCode 3

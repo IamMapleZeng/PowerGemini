@@ -15,7 +15,7 @@
         </activity>
         <provider
             android:name="com.vince.geminimi.TimingSettingsProvider"
-            android:authorities="io.github.powergemini.timing"
+            android:authorities="io.github.iammaplezeng.powergemini.timing"
             android:directBootAware="true"
             android:exported="true" />
 
