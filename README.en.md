@@ -1,4 +1,4 @@
-# Power Gemini 2.1
+# Power Gemini 2.4.1
 
 [简体中文](README.md)
 
@@ -7,13 +7,21 @@ Power Gemini is an LSPosed module for the Chinese version of Xiaomi HyperOS. Hol
 ## Installation
 
 1. Install and set up the Google app and Gemini. Select Gemini in Google's digital assistant settings.
-2. Install the Power Gemini 2.1 APK. Its package name is `io.github.iammaplezeng.powergemini`. If upgrading from an earlier package name, disable the old module in LSPosed and set your preferred hold duration again in the new app.
+2. Install the Power Gemini 2.4.1 APK. Its package name is `io.github.iammaplezeng.powergemini`. If upgrading from an earlier package name, disable the old module in LSPosed and set your preferred hold duration again in the new app.
 3. Disable the original GeminiMi module and enable Power Gemini in LSPosed. Select System Framework, XiaoAI (`com.miui.voiceassist`), the Google app (`com.google.android.googlequicksearchbox`), and Gemini (`com.google.android.apps.bard`) as scopes.
 4. Restart and unlock your phone, then hold the power button to test. To troubleshoot, run `adb logcat -d` and search for `PowerGemini`.
 
 ## Set the hold duration
 
 Open Power Gemini from the launcher. Use the slider to choose a duration from 0.3 to 3.0 seconds in 0.1-second steps, then tap **保存 (Save)**. The default is 0.5 seconds. Restart once after upgrading so LSPosed can load the new module. Later changes to the hold duration take effect without restarting.
+
+## Launch from the lock screen
+
+In Power Gemini, tap **打开 Google 权限设置 (Open Google permission settings)** in the lock-screen section. Allow **Show on Lock screen** for the Google app in HyperOS, and turn on **Use Gemini without unlocking** in Gemini settings. Power Gemini checks the HyperOS permission again when you return.
+
+## Screen context
+
+Enabled by default. When disabled, a power-button Gemini session does not request Android to capture screen text or a screenshot. Other Gemini entry points keep their own settings.
 
 ## Build from source
 

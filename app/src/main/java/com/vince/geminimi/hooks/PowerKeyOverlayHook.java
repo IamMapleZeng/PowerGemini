@@ -1,12 +1,18 @@
 package com.vince.geminimi.hooks;
 
+import android.app.AppOpsManager;
+import android.app.KeyguardManager;
+import android.content.ComponentName;
 import android.content.Context;
+import android.os.Bundle;
+import android.os.IBinder;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
 import android.view.KeyEvent;
 
 import com.vince.geminimi.Constants;
+import com.vince.geminimi.Diagnostics;
 import com.vince.geminimi.TimingSettings;
 
 import android.database.ContentObserver;
@@ -30,11 +36,15 @@ public final class PowerKeyOverlayHook {
     private static final String PWM = "com.android.server.policy.PhoneWindowManager";
     private static final String MIUI_SHORTCUT_ACTIONS =
             "com.miui.server.input.util.ShortCutActionsUtils";
+    // HyperOS uses this AppOp to allow an app's activity to appear over keyguard.
+    private static final int MIUI_OP_SHOW_WHEN_LOCKED = 10020;
     private static final int SHOW_WITH_ASSIST = 1;
     private static final int SHOW_WITH_SCREENSHOT = 1 << 1;
     private static final int SHOW_SOURCE_PUSH_TO_TALK = 1 << 4;
-    private static final int SHOW_POWER_ASSIST_WITH_SCREENSHOT =
-            SHOW_WITH_ASSIST | SHOW_WITH_SCREENSHOT | SHOW_SOURCE_PUSH_TO_TALK;
+    private static final int SCREEN_CONTEXT_FLAGS = SHOW_WITH_ASSIST | SHOW_WITH_SCREENSHOT;
+    private static final ThreadLocal<boolean[]> PRIVATE_SESSION = new ThreadLocal<>();
+    private static boolean sContextHookInstalled;
+    private static volatile boolean sScreenContextEnabled = true;
     private static final Object SEQUENCE_LOCK = new Object();
     private static final Handler SEQUENCE_HANDLER = new Handler(Looper.getMainLooper());
     private static Object sPhoneWindowManager;
@@ -46,6 +56,11 @@ public final class PowerKeyOverlayHook {
     private static Handler sSettingsHandler;
     private static boolean sAssistantRequested;
     private static boolean sAssistantAccepted;
+    private static volatile boolean sKeyHookInstalled;
+    private static volatile long sLastKeyAt;
+    private static volatile SessionReport sLastSession;
+
+    private record SessionReport(long at, int result, boolean locked) {}
 
     public static void apply(XC_LoadPackage.LoadPackageParam lpp) {
         ClassLoader cl = lpp.classLoader;
@@ -58,6 +73,7 @@ public final class PowerKeyOverlayHook {
             return;
         }
 
+        hookSessionContext(cl);
         hookPowerKeyEvents(pwm);
 
         // 不再枚举固定名字。HyperOS 各版本把方法叫 launchSuperXiaoAi /
@@ -70,6 +86,30 @@ public final class PowerKeyOverlayHook {
             hooked++;
         }
         XposedBridge.log(Constants.TAG + " PowerKeyOverlay hooked " + hooked + " method(s)");
+    }
+
+    private static void hookSessionContext(ClassLoader loader) {
+        try {
+            Class<?> implementation = XposedHelpers.findClass(
+                    "com.android.server.voiceinteraction.VoiceInteractionManagerServiceImpl", loader);
+            for (java.lang.reflect.Method method : implementation.getDeclaredMethods()) {
+                Class<?>[] types = method.getParameterTypes();
+                if (!method.getName().equals("showSessionLocked") || types.length < 2
+                        || types[0] != Bundle.class || types[1] != int.class) continue;
+                XposedBridge.hookMethod(method, new XC_MethodHook() {
+                    @Override protected void beforeHookedMethod(MethodHookParam param) {
+                        boolean[] session = PRIVATE_SESSION.get();
+                        if (session == null) return;
+                        param.args[1] = (Integer) param.args[1] & ~SCREEN_CONTEXT_FLAGS;
+                        session[0] = true;
+                        XposedBridge.log(Constants.TAG + " power session screen context suppressed");
+                    }
+                });
+                sContextHookInstalled = true;
+            }
+        } catch (Throwable t) {
+            XposedBridge.log(Constants.TAG + " screen context hook unavailable: " + t);
+        }
     }
 
     private static int hookMiuiShortcutAction(ClassLoader cl) {
@@ -144,6 +184,12 @@ public final class PowerKeyOverlayHook {
                             refreshTimingSettings(context);
                         }
                     });
+            context.getContentResolver().registerContentObserver(Diagnostics.REQUEST, false,
+                    new ContentObserver(handler) {
+                        @Override public void onChange(boolean selfChange) {
+                            reportDiagnostics(context);
+                        }
+                    });
             sSettingsHandler = handler;
             handler.post(() -> refreshTimingSettings(context));
         } catch (RuntimeException e) {
@@ -164,10 +210,59 @@ public final class PowerKeyOverlayHook {
                 TimingSettings.URI, null, null, null, null)) {
             if (cursor != null && cursor.moveToFirst()) {
                 sConfiguredDelayMs = TimingSettings.sanitize(cursor.getInt(0));
+                int screenContext = cursor.getColumnIndex(TimingSettings.SCREEN_CONTEXT);
+                sScreenContextEnabled = screenContext < 0 || cursor.getInt(screenContext) != 0;
                 XposedBridge.log(Constants.TAG + " configured hold: " + sConfiguredDelayMs + " ms");
             }
         } catch (RuntimeException e) {
             XposedBridge.log(Constants.TAG + " could not read timing settings: " + e);
+        }
+    }
+
+    private static void reportDiagnostics(Context context) {
+        Bundle report = new Bundle();
+        report.putBoolean(Diagnostics.KEY_HOOK, sKeyHookInstalled);
+        report.putInt(Diagnostics.LOCK_SCREEN_PERMISSION, lockScreenPermission(context));
+        report.putLong(Diagnostics.LAST_KEY, sLastKeyAt);
+        SessionReport last = sLastSession;
+        if (last != null) {
+            report.putLong(Diagnostics.LAST_SESSION, last.at());
+            report.putInt(Diagnostics.SESSION_RESULT, last.result());
+            report.putBoolean(Diagnostics.SESSION_LOCKED, last.locked());
+        }
+        try {
+            Object manager = voiceInteractionManager();
+            ComponentName service = manager == null ? null : (ComponentName)
+                    XposedHelpers.callMethod(manager, "getActiveServiceComponentName");
+            report.putString(Diagnostics.VOICE_SERVICE, service == null ? "" : service.getPackageName());
+        } catch (Throwable t) {
+            XposedBridge.log(Constants.TAG + " voice service diagnostic failed: " + t);
+        }
+        try {
+            context.getContentResolver().call(Diagnostics.RESULT, Diagnostics.REPORT, null, report);
+        } catch (RuntimeException e) {
+            XposedBridge.log(Constants.TAG + " could not report diagnostics: " + e);
+        }
+    }
+
+    private static int lockScreenPermission(Context context) {
+        try {
+            Class<?> activityManager = XposedHelpers.findClass("android.app.ActivityManager", null);
+            int userId = (int) XposedHelpers.callStaticMethod(activityManager, "getCurrentUser");
+            int uid = (int) XposedHelpers.callMethod(context.getPackageManager(),
+                    "getPackageUidAsUser", Constants.GOOGLE_APP_PKG, userId);
+            AppOpsManager appOps = context.getSystemService(AppOpsManager.class);
+            int mode = (int) XposedHelpers.callMethod(appOps, "checkOpNoThrow",
+                    MIUI_OP_SHOW_WHEN_LOCKED, uid, Constants.GOOGLE_APP_PKG);
+            return switch (mode) {
+                case AppOpsManager.MODE_ALLOWED -> Diagnostics.LOCK_SCREEN_ALLOWED;
+                case AppOpsManager.MODE_IGNORED, AppOpsManager.MODE_ERRORED ->
+                        Diagnostics.LOCK_SCREEN_DENIED;
+                default -> Diagnostics.LOCK_SCREEN_UNKNOWN;
+            };
+        } catch (Throwable t) {
+            XposedBridge.log(Constants.TAG + " could not check Google lock-screen permission: " + t);
+            return Diagnostics.LOCK_SCREEN_UNKNOWN;
         }
     }
 
@@ -192,6 +287,7 @@ public final class PowerKeyOverlayHook {
                             cancelLongPressSequence();
                         } else if (event.getAction() == KeyEvent.ACTION_DOWN
                                 && event.getRepeatCount() == 0) {
+                            sLastKeyAt = System.currentTimeMillis();
                             Context context = (Context) XposedHelpers.getObjectField(
                                     param.thisObject, "mContext");
                             if (context != null) {
@@ -203,6 +299,7 @@ public final class PowerKeyOverlayHook {
                     }
                 }
             });
+            sKeyHookInstalled = true;
             XposedBridge.log(Constants.TAG + " power key timer installed");
         } catch (Throwable t) {
             XposedBridge.log(Constants.TAG + " power key event hook unavailable: " + t);
@@ -254,15 +351,25 @@ public final class PowerKeyOverlayHook {
             sAssistantRequested = true;
             pwm = sPhoneWindowManager;
         }
-        boolean accepted = false;
+        int result = Diagnostics.FAILED;
+        long requestedAt = System.currentTimeMillis();
         long identity = android.os.Binder.clearCallingIdentity();
         try {
-            accepted = sendAssist(context);
+            result = sendAssist(context);
         } catch (Throwable t) {
             XposedBridge.log(Constants.TAG + " assistant request failed: " + t);
         } finally {
             android.os.Binder.restoreCallingIdentity(identity);
         }
+        boolean locked = false;
+        try {
+            KeyguardManager keyguard = context.getSystemService(KeyguardManager.class);
+            locked = keyguard != null && keyguard.isKeyguardLocked();
+        } catch (RuntimeException e) {
+            XposedBridge.log(Constants.TAG + " could not inspect lock screen state: " + e);
+        }
+        sLastSession = new SessionReport(requestedAt, result, locked);
+        boolean accepted = result != Diagnostics.FAILED;
         synchronized (SEQUENCE_LOCK) {
             if (sPowerDownAt == downAt) {
                 sAssistantAccepted = accepted;
@@ -318,7 +425,7 @@ public final class PowerKeyOverlayHook {
         throw new IllegalArgumentException("Unsupported return type: " + rt);
     }
 
-    private static boolean sendAssist(Context ctx) {
+    private static int sendAssist(Context ctx) {
         // Bard 自身没声明 VoiceInteractionService，唯一弹 overlay 的路径是
         // Pixel 那条："framework → GSB VIS → GSB 把请求 forward 给 Bard overlay"。
         // 前提：voice_interaction_service 必须是 GSB 那个组件。MIUI 在开机后会
@@ -327,14 +434,16 @@ public final class PowerKeyOverlayHook {
         ensureGoogleVis(ctx);
 
         // 真·overlay：让当前 VoiceInteractionService 直接显示 session UI。
-        if (tryShowSession()) return true;
+        boolean includeContext = sScreenContextEnabled;
+        if (tryShowSession(includeContext)) return Diagnostics.VOICE_ACCEPTED;
 
         // SystemUI AssistManager (国行 HyperOS 大概率没接，留作兜底)。
-        if (tryStatusBarStartAssist()) return true;
+        // SystemUI may add its own screen context, so use it only when sharing is enabled.
+        if (includeContext && tryStatusBarStartAssist()) return Diagnostics.SYSTEM_UI_REQUESTED;
 
         XposedBridge.log(Constants.TAG
                 + " overlay launch failed; skip SearchManager.launchAssist() to avoid Gemini app");
-        return false;
+        return Diagnostics.FAILED;
     }
 
     private static void ensureGoogleVis(Context ctx) {
@@ -352,17 +461,27 @@ public final class PowerKeyOverlayHook {
         }
     }
 
-    private static boolean tryShowSession() {
+    private static Object voiceInteractionManager() {
+        Class<?> sm = XposedHelpers.findClass("android.os.ServiceManager", null);
+        IBinder binder = (IBinder) XposedHelpers.callStaticMethod(sm, "getService", "voiceinteraction");
+        if (binder == null) return null;
+        Class<?> stub = XposedHelpers.findClass(
+                "com.android.internal.app.IVoiceInteractionManagerService$Stub", null);
+        return XposedHelpers.callStaticMethod(stub, "asInterface", binder);
+    }
+
+    private static boolean tryShowSession(boolean includeContext) {
+        if (!includeContext && !sContextHookInstalled) return false;
+        boolean[] contextSuppressed = includeContext ? null : new boolean[1];
+        if (contextSuppressed != null) PRIVATE_SESSION.set(contextSuppressed);
         try {
-            Class<?> sm = XposedHelpers.findClass("android.os.ServiceManager", null);
-            android.os.IBinder binder = (android.os.IBinder) XposedHelpers.callStaticMethod(
-                    sm, "getService", "voiceinteraction");
-            if (binder == null) return false;
-            Class<?> stub = XposedHelpers.findClass(
-                    "com.android.internal.app.IVoiceInteractionManagerService$Stub", null);
-            Object svc = XposedHelpers.callStaticMethod(stub, "asInterface", binder);
+            Object svc = voiceInteractionManager();
             if (svc == null) return false;
-            Object result = invokeKnown(svc, "showSessionForActiveService");
+            Object result = invokeKnown(svc, "showSessionForActiveService", includeContext);
+            if (contextSuppressed != null && !contextSuppressed[0]) {
+                XposedBridge.log(Constants.TAG + " screen context hook was not reached");
+                return false;
+            }
             if (result instanceof Boolean && !((Boolean) result)) return false;
             XposedBridge.log(Constants.TAG
                     + " launched via showSessionForActiveService() (overlay path)");
@@ -370,15 +489,17 @@ public final class PowerKeyOverlayHook {
         } catch (Throwable t) {
             XposedBridge.log(Constants.TAG + " showSessionForActiveService failed: " + t);
             return false;
+        } finally {
+            if (contextSuppressed != null) PRIVATE_SESSION.remove();
         }
     }
 
-    private static android.os.Bundle assistArgs() {
+    private static android.os.Bundle assistArgs(boolean includeContext) {
         android.os.Bundle args = new android.os.Bundle();
         args.putInt("invocation_type", 7);              // power-long-press
         args.putString("invocation_source", "POWER_LONG_PRESS");
-        args.putBoolean("request_assist_structure", true);
-        args.putBoolean("request_assist_screenshot", true);
+        args.putBoolean("request_assist_structure", includeContext);
+        args.putBoolean("request_assist_screenshot", includeContext);
         return args;
     }
 
@@ -391,7 +512,7 @@ public final class PowerKeyOverlayHook {
                     "com.android.internal.statusbar.IStatusBarService$Stub", null);
             Object statusBar = XposedHelpers.callStaticMethod(stub, "asInterface", binder);
             if (statusBar == null) return false;
-            Object result = invokeKnown(statusBar, "startAssist");
+            Object result = invokeKnown(statusBar, "startAssist", true);
             if (result instanceof Boolean && !((Boolean) result)) return false;
             XposedBridge.log(Constants.TAG
                     + " launched via IStatusBarService.startAssist() (overlay path)");
@@ -402,7 +523,7 @@ public final class PowerKeyOverlayHook {
         }
     }
 
-    private static Object invokeKnown(Object target, String name) throws Throwable {
+    private static Object invokeKnown(Object target, String name, boolean includeContext) throws Throwable {
         java.lang.reflect.Method best = null;
         for (java.lang.reflect.Method m : target.getClass().getMethods()) {
             if (!name.equals(m.getName())) continue;
@@ -425,7 +546,7 @@ public final class PowerKeyOverlayHook {
             throw new NoSuchMethodError(target.getClass().getName() + "#" + name);
         }
         best.setAccessible(true);
-        Object[] args = buildArgs(best.getParameterTypes());
+        Object[] args = buildArgs(best.getParameterTypes(), includeContext);
         XposedBridge.log(Constants.TAG + " invoking " + methodSig(best));
         return best.invoke(target, args);
     }
@@ -456,14 +577,14 @@ public final class PowerKeyOverlayHook {
         return hasBundle && hasFlags;
     }
 
-    private static Object[] buildArgs(Class<?>[] pts) {
+    private static Object[] buildArgs(Class<?>[] pts, boolean includeContext) {
         Object[] args = new Object[pts.length];
         for (int i = 0; i < pts.length; i++) {
             Class<?> pt = pts[i];
             if (pt == android.os.Bundle.class) {
-                args[i] = assistArgs();
+                args[i] = assistArgs(includeContext);
             } else if (pt == int.class || pt == Integer.class) {
-                args[i] = SHOW_POWER_ASSIST_WITH_SCREENSHOT;
+                args[i] = SHOW_SOURCE_PUSH_TO_TALK | (includeContext ? SCREEN_CONTEXT_FLAGS : 0);
             } else if (pt == boolean.class || pt == Boolean.class) {
                 args[i] = true;
             } else {

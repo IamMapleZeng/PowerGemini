@@ -10,6 +10,7 @@ public final class TimingSettings {
     public static final int STEP_MS = 100;
     public static final int DEFAULT_MS = 500;
     public static final Uri URI = Uri.parse("content://io.github.iammaplezeng.powergemini.timing/delay");
+    public static final String SCREEN_CONTEXT = "screen_context";
     private static final String KEY = "delay_ms";
 
     private TimingSettings() {}
@@ -25,6 +26,16 @@ public final class TimingSettings {
 
     public static boolean save(Context context, int millis) {
         if (!preferences(context).edit().putInt(KEY, sanitize(millis)).commit()) return false;
+        context.getContentResolver().notifyChange(URI, null, 0);
+        return true;
+    }
+
+    public static boolean screenContextEnabled(Context context) {
+        return preferences(context).getBoolean(SCREEN_CONTEXT, true);
+    }
+
+    public static boolean saveScreenContext(Context context, boolean enabled) {
+        if (!preferences(context).edit().putBoolean(SCREEN_CONTEXT, enabled).commit()) return false;
         context.getContentResolver().notifyChange(URI, null, 0);
         return true;
     }

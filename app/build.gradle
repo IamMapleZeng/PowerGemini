@@ -17,8 +17,8 @@ android {
         applicationId "io.github.iammaplezeng.powergemini"
         minSdk 30
         targetSdk 34
-        versionCode 3
-        versionName "2.1"
+        versionCode 10
+        versionName "2.4.1"
     }
 
     if (hasReleaseSigning) {
