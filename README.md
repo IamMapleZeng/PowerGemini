@@ -7,9 +7,10 @@
 ## 安装
 
 1. 安装并初始化 Google App 和 Gemini，在 Google 的数字助理选项中选择 Gemini。
-2. 安装 Power Gemini 2.4.1 APK。发布版包名为 `io.github.iammaplezeng.powergemini`。从旧包名升级时，请先在 LSPosed 停用旧版，再启用新包名的模块。旧版的唤醒时间需要重新设置。
-3. 在 LSPosed 停用原版 GeminiMi，再启用 Power Gemini。勾选系统框架、超级小爱（`com.miui.voiceassist`）、Google App（`com.google.android.googlequicksearchbox`）和 Gemini（`com.google.android.apps.bard`）。
-4. 重启并解锁，然后长按电源键测试。使用 `adb logcat -d` 并搜索 `PowerGemini` 可查看模块日志。
+2. 在手机系统设置的「默认应用」中，打开「辅助和语音输入（Assist & Voice input）」，将默认助理设为 **Google**。
+3. 安装 Power Gemini 2.4.1 APK。发布版包名为 `io.github.iammaplezeng.powergemini`。
+4. 在 LSPosed 启用 Power Gemini。勾选系统框架、超级小爱（`com.miui.voiceassist`）、Google App（`com.google.android.googlequicksearchbox`）和 Gemini（`com.google.android.apps.bard`）。
+5. 重启并解锁，然后长按电源键测试。使用 `adb logcat -d` 并搜索 `PowerGemini` 可查看模块日志。
 
 ## 设置唤醒时间
 

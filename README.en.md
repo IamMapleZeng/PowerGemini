@@ -7,9 +7,10 @@ Power Gemini is an LSPosed module for the Chinese version of Xiaomi HyperOS. Hol
 ## Installation
 
 1. Install and set up the Google app and Gemini. Select Gemini in Google's digital assistant settings.
-2. Install the Power Gemini 2.4.1 APK. Its package name is `io.github.iammaplezeng.powergemini`. If upgrading from an earlier package name, disable the old module in LSPosed and set your preferred hold duration again in the new app.
-3. Disable the original GeminiMi module and enable Power Gemini in LSPosed. Select System Framework, XiaoAI (`com.miui.voiceassist`), the Google app (`com.google.android.googlequicksearchbox`), and Gemini (`com.google.android.apps.bard`) as scopes.
-4. Restart and unlock your phone, then hold the power button to test. To troubleshoot, run `adb logcat -d` and search for `PowerGemini`.
+2. In your phone's system settings, open **Default apps** → **Assist & Voice input** and set the default assistant to **Google**.
+3. Install the Power Gemini 2.4.1 APK. The release package name is `io.github.iammaplezeng.powergemini`.
+4. Enable Power Gemini in LSPosed. Select System Framework, XiaoAI (`com.miui.voiceassist`), the Google app (`com.google.android.googlequicksearchbox`), and Gemini (`com.google.android.apps.bard`) as scopes.
+5. Restart and unlock your phone, then hold the power button to test. To troubleshoot, run `adb logcat -d` and search for `PowerGemini`.
 
 ## Set the hold duration
 
